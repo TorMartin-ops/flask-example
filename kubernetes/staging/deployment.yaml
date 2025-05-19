@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flask-app-staging
+  namespace: staging # Ensure this namespace exists in your cluster
+  labels:
+    app: flask-app
+    env: staging
+spec:
+  replicas: 1 # You can adjust the number of replicas
+  selector:
+    matchLabels:
+      app: flask-app
+      env: staging
+  template:
+    metadata:
+      labels:
+        app: flask-app
+        env: staging
+    spec:
+      containers:
+      - name: flask-app
+        image: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA # This will be replaced by GitLab CI
+        ports:
+        - containerPort: 8000 # Port your Gunicorn server listens on
+        env:
+          # Load environment variables from ConfigMap and Secret
+          - name: FLASK_ENV
+            valueFrom:
+              configMapKeyRef:
+                name: flask-app-config-staging
+                key: FLASK_ENV
+          - name: DATABASE_URL
+            valueFrom:
+              secretKeyRef:
+                name: flask-app-secret-staging
+                key: DATABASE_URL
+        # Optional: Resource requests and limits
+        # resources:
+        #   requests:
+        #     cpu: "100m"
+        #     memory: "128Mi"
+        #   limits:
+        #     cpu: "500m"
+        #     memory: "512Mi"

@@ -1,0 +1,78 @@
+# Define the stages of the CI/CD pipeline
+stages:
+  - build
+  - test
+  - deploy_staging
+  - deploy_production
+
+# --- Build Stage ---
+build:
+  stage: build
+  image: docker:latest
+  services:
+    - docker:dind # Use docker-in-docker for building images
+  variables:
+    DOCKER_TLS_CERTDIR: "/certs"
+  script:
+    - docker build -t $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA .
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
+  # Optional: Cache Docker layers to speed up builds
+  # cache:
+  #   paths:
+  #     - .m2/
+  #   key: "$CI_COMMIT_REF_SLUG"
+
+# --- Test Stage ---
+test:
+  stage: test
+  image: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA # Use the built image for testing
+  # Variables for testing - e.g., pointing to a test database if needed
+  # variables:
+  #   FLASK_ENV: "testing"
+  #   DATABASE_URL: "sqlite:///:memory:" # Example for in-memory test DB
+  script:
+    - pytest # Command to run your pytest tests
+  # Report test coverage (requires pytest-cov and configuration)
+  # coverage: '/^TOTAL.+?\s+(\d+%)'$
+
+# --- Deploy to Staging Stage ---
+deploy_staging:
+  stage: deploy_staging
+  image: alpine/k8s:1.24.2 # Lightweight image with kubectl
+  # Configure kubectl - needs access to your Kubernetes cluster
+  # This typically involves setting KUBECONFIG as a CI/CD variable
+  # or configuring the runner with access.
+  # variables:
+  #   KUBECONFIG: $KUBECONFIG_STAGING # Example CI/CD variable
+  script:
+    # Apply Kubernetes manifests for the staging environment
+    # You will need to create these YAML files (e.g., deployment-staging.yaml, service-staging.yaml)
+    # And potentially use tools like Kustomize or Helm for environment-specific values.
+    - kubectl apply -f kubernetes/staging/deployment.yaml -n staging # Example command
+    - kubectl apply -f kubernetes/staging/service.yaml -n staging # Example command
+  only:
+    - main # Trigger this stage on pushes to the main branch (or your integration branch)
+
+# --- Deploy to Production Stage ---
+deploy_production:
+  stage: deploy_production
+  image: alpine/k8s:1.24.2 # Lightweight image with kubectl
+  # Configure kubectl - needs access to your Kubernetes cluster
+  # variables:
+  #   KUBECONFIG: $KUBECONFIG_PRODUCTION # Example CI/CD variable
+  script:
+    # Apply Kubernetes manifests for the production environment
+    # Use the same image tag as staging for consistency
+    - kubectl apply -f kubernetes/production/deployment.yaml -n production # Example command
+    - kubectl apply -f kubernetes/production/service.yaml -n production # Example command
+  when: manual # This stage requires manual triggering in the GitLab UI
+  only:
+    - main # Trigger this stage on pushes to the main branch (or your integration branch)
+
+# Note:
+# - Replace placeholder paths and commands with your actual file names and kubectl commands.
+# - Configure necessary CI/CD variables in your GitLab project settings
+#   (e.g., KUBECONFIG, DATABASE_URL for staging/production).
+# - Ensure your GitLab Runner has access to Docker and your Kubernetes cluster.
+# - Create the Kubernetes YAML manifest files (deployment, service, etc.) for both staging and production.

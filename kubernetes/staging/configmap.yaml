@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: flask-app-config-staging
+  namespace: staging
+data:
+  FLASK_ENV: "staging"
+  # Add other non-sensitive configuration here
